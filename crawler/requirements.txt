@@ -1,0 +1,3 @@
+# 爬虫依赖（纯标准库，无需额外安装；保留文件以兼容未来扩展）
+# 当前 damai.py / crawl.py 仅使用标准库：urllib / hashlib / json / re / datetime
+# 如需 HTTP 代理或更健壮的请求，可在此添加：requests
