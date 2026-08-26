@@ -320,3 +320,36 @@ body {
     position: static;
   }
 }
+/* ---- 艺人标签 ---- */
+.card-artists {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.artist-tag {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--primary, #e6484d);
+  background: rgba(230, 72, 77, 0.08);
+  border: 1px solid rgba(230, 72, 77, 0.25);
+  border-radius: 4px;
+  padding: 1px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.artist-tag.more { color: var(--muted); border-color: var(--border); background: transparent; }
+
+/* ---- 排序条 ---- */
+.sort-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.chip-sm {
+  font-size: 12px;
+  padding: 2px 10px;
+}

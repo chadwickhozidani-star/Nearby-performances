@@ -161,14 +161,11 @@ def main():
     # 移除内部标记字段
     for it in unique:
         it.pop("_date_flag", None)
-    print(f"[3/3] 合并去重后共 {len(unique)} 条")
-
-    # 按日期排序（未知日期的放最后）
-    def sort_key(it):
-        dt = parse_show_time(it.get("showTime", ""))
-        return dt.timestamp() if dt else 9999999999
-
-    unique.sort(key=sort_key)
+    # 热度排序：大麦分类页 sortType=10 为推荐/综合热度排序，
+    # 抓取顺序即热度顺序，按此编号 heatRank（越小越热）
+    for i, it in enumerate(unique, 1):
+        it["heatRank"] = i
+    print(f"[3/3] 合并去重后共 {len(unique)} 条（已按大麦推荐热度排序）")
 
     # 写入文件
     events_path = os.path.join(DATA_DIR, "events.json")

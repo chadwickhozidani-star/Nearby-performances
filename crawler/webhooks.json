@@ -1,0 +1,10 @@
+{
+  "webhooks": [
+    {
+      "name": "示例群",
+      "url": "",
+      "secret": "",
+      "enabled": true
+    }
+  ]
+}

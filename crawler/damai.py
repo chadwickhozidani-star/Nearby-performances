@@ -221,8 +221,21 @@ class DamaiClient:
             name = show_tag
         schema = d.get("schema", "")
         raw_id = d.get("itemId") or d.get("id", "")
-        if not schema and raw_id:
-            schema = f"https://m.damai.cn/shows/item.html?itemId={raw_id}"
+        if not schema or schema.startswith("damai://"):
+            schema = f"https://m.damai.cn/damai/detail/item.html?itemId={raw_id}"
+        # 艺人提取：showTag / interestInfo（如"杨和苏KeyNG"）/ bottomLeftV2(ARTIST).value
+        artists = []
+        _STOP = {"预售", "售票中", "热抢", "正在热抢", "即将开抢", "售罄", "待定", "热门",
+                 "新开票", "限购", "缺货登记", "即将开售", "已开售", "开售", "抢票", "想看", "场次"}
+        def _push(val):
+            val = (val or "").strip()
+            if val and val not in artists and val not in _STOP and len(val) <= 40:
+                artists.append(val)
+        _push(d.get("showTag", ""))
+        _push(d.get("interestInfo", ""))
+        bottom_left = d.get("bottomLeftV2") or d.get("bottomLeft")
+        if isinstance(bottom_left, dict) and bottom_left.get("valueType") == "ARTIST":
+            _push(str(bottom_left.get("value", "")))
         # 巡演卡片结构：itemId + city + showTime，无 venueName/priceStr
         return {
             "id": str(raw_id),
@@ -237,5 +250,6 @@ class DamaiClient:
             "showStatus": (d.get("showStatus") or {}).get("desc", ""),
             "categoryName": category_name,
             "wantSee": d.get("wantSee", False),
+            "artists": artists,
             "schema": schema,
         }

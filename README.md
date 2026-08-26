@@ -17,9 +17,12 @@ AIGC:
 
 - 城市单选 / 多选（支持全部热门城市 + 任意城市）
 - 演出类型筛选：演唱会、音乐节、Livehouse、话剧音乐剧、脱口秀、相声曲艺、音乐会、舞蹈舞剧、沉浸式演出
+- 艺人筛选：热门艺人 Top 40 多选（歌手/乐队），可叠加城市与类型
+- 综合热度排序：默认按大麦推荐/热度排序（`heatRank` 字段），可切换"最早开演 / 价格最低"
 - 关键词搜索（艺人 / 演出名 / 场馆）
-- 卡片视图展示：海报、时间、场馆、票价、购票链接
+- 卡片视图展示：海报、艺人标签、时间、场馆、票价、购票链接（点击跳转大麦对应演出页）
 - 数据每日自动更新，无需手动维护
+- 飞书通知：支持多个 webhook 群机器人（成功卡片 / 失败告警）
 
 ## 架构
 
@@ -93,14 +96,49 @@ npm run dev       # http://localhost:3000
 
 ### 飞书通知配置（可选）
 
-抓取完成后可通过飞书群机器人 webhook 发送通知（成功卡片 / 失败告警）。
+抓取完成后可通过飞书群机器人 webhook 发送通知（成功卡片 / 失败告警），支持**多个 webhook**。
 
-1. **创建飞书群机器人**：飞书群 → 设置 → 群机器人 → 添加机器人 → 自定义机器人 → 复制 Webhook 地址（如开启"签名校验"，一并复制加签密钥）
-2. **配置 GitHub Secrets**：仓库 Settings → Secrets and variables → Actions → New repository secret：
-   - `FEISHU_WEBHOOK_URL`：机器人 Webhook 地址（必填才发送）
-   - `FEISHU_WEBHOOK_SECRET`：加签密钥（机器人开启签名校验时填）
-   - `FEISHU_SITE_URL`：站点访问地址（可选，显示在通知卡片中，方便点击跳转）
-3. 下次爬虫运行后，飞书群即可收到通知。本地测试：`$env:FEISHU_WEBHOOK_URL="https://open.feishu.cn/open-apis/bot/v2/hook/xxx"; python crawler\crawl.py`
+#### 方式一：配置文件（推荐，支持多 webhook）
+
+编辑 `crawler/webhooks.json`（本仓库自带模板，直接填写即可）：
+
+```json
+{
+  "webhooks": [
+    {
+      "name": "运营群",
+      "url": "https://open.feishu.cn/open-apis/bot/v2/hook/xxx",
+      "secret": "",
+      "enabled": true
+    },
+    {
+      "name": "告警群",
+      "url": "https://open.feishu.cn/open-apis/bot/v2/hook/yyy",
+      "secret": "加签密钥",
+      "enabled": true
+    }
+  ]
+}
+```
+
+- `name`：群备注名（可选，显示在通知汇总里）
+- `url`：飞书群机器人 Webhook 地址（必填，留空则该条不生效）
+- `secret`：加签密钥（机器人开启"签名校验"时填，可不填）
+- `enabled`：是否启用（可选，默认 true）
+
+保存后推送到 GitHub 仓库，下次爬虫运行即对所有群发送。**配置文件优先级高于环境变量**。
+
+#### 方式二：环境变量（单 webhook，兼容旧配置）
+
+配置 GitHub Secrets（仓库 Settings → Secrets and variables → Actions → New repository secret）：
+
+- `FEISHU_WEBHOOK_URL`：机器人 Webhook 地址（必填才发送）
+- `FEISHU_WEBHOOK_SECRET`：加签密钥（机器人开启签名校验时填）
+- `FEISHU_SITE_URL`：站点访问地址（可选，显示在通知卡片中，方便点击跳转）
+
+> 当 `webhooks.json` 中所有条目 url 均为空时，自动回退使用环境变量。
+
+本地测试：`$env:FEISHU_WEBHOOK_URL="https://open.feishu.cn/open-apis/bot/v2/hook/xxx"; python crawler\crawl.py`，或在 crawler 目录运行 `python notify.py` 发送测试卡片。
 
 通知内容包含：抓取城市、演出总数、分类分布、时间范围、生成时间、失败项提示、站点链接。
 

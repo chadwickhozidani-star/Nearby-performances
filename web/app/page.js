@@ -12,6 +12,8 @@ export default function Home() {
   const [meta, setMeta] = useState(null);
   const [selectedCities, setSelectedCities] = useState(["北京", "上海"]);
   const [selectedCats, setSelectedCats] = useState([]);
+  const [selectedArtists, setSelectedArtists] = useState([]);
+  const [sortBy, setSortBy] = useState("heat");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -57,6 +59,34 @@ export default function Home() {
     );
   };
 
+  const toggleArtist = (artist) => {
+    setSelectedArtists((prev) =>
+      prev.includes(artist) ? prev.filter((a) => a !== artist) : [...prev, artist]
+    );
+  };
+
+  // 艺人候选：按出现次数排序取 Top 40，次数相同按首次出现顺序（热度）
+  const artistOptions = useMemo(() => {
+    const order = [];
+    const count = {};
+    for (const e of events) {
+      const arts = Array.isArray(e.artists) ? e.artists : [];
+      for (const a of arts) {
+        if (!a) continue;
+        if (!(a in count)) {
+          count[a] = 0;
+          order.push(a);
+        }
+        count[a] += 1;
+      }
+    }
+    return order
+      .map((a) => ({ name: a, n: count[a], idx: order.indexOf(a) }))
+      .sort((x, y) => y.n - x.n || x.idx - y.idx)
+      .slice(0, 40)
+      .map((x) => x.name);
+  }, [events]);
+
   const filtered = useMemo(() => {
     let list = events;
     if (selectedCities.length > 0) {
@@ -65,16 +95,43 @@ export default function Home() {
     if (selectedCats.length > 0) {
       list = list.filter((e) => selectedCats.includes(e.category));
     }
+    if (selectedArtists.length > 0) {
+      list = list.filter((e) =>
+        (Array.isArray(e.artists) ? e.artists : []).some((a) =>
+          selectedArtists.includes(a)
+        )
+      );
+    }
     if (query.trim()) {
       const q = query.trim().toLowerCase();
       list = list.filter(
         (e) =>
           (e.name || "").toLowerCase().includes(q) ||
-          (e.venueName || "").toLowerCase().includes(q)
+          (e.venueName || "").toLowerCase().includes(q) ||
+          (Array.isArray(e.artists) ? e.artists : []).some((a) =>
+            (a || "").toLowerCase().includes(q)
+          )
+      );
+    }
+    const parseStart = (t) => {
+      const m = /(\d{4})[.\-年](\d{1,2})[.\-月](\d{1,2})/.exec(t || "");
+      return m ? new Date(+m[1], +m[2] - 1, +m[3]).getTime() : Infinity;
+    };
+    if (sortBy === "time") {
+      list = [...list].sort((a, b) => parseStart(a.showTime) - parseStart(b.showTime));
+    } else if (sortBy === "price") {
+      list = [...list].sort(
+        (a, b) =>
+          (parseFloat(a.priceLow) || Infinity) - (parseFloat(b.priceLow) || Infinity)
+      );
+    } else {
+      // 默认综合热度：heatRank 越小越热
+      list = [...list].sort(
+        (a, b) => (a.heatRank || 999999) - (b.heatRank || 999999)
       );
     }
     return list;
-  }, [events, selectedCities, selectedCats, query]);
+  }, [events, selectedCities, selectedCats, selectedArtists, sortBy, query]);
 
   const stats = useMemo(() => {
     const byCity = {};
@@ -145,6 +202,29 @@ export default function Home() {
           </div>
         </div>
 
+        {artistOptions.length > 0 && (
+          <div className="filter-group">
+            <div className="filter-label">艺人（可多选，仅列热门 Top 40）</div>
+            <div className="chips">
+              <button
+                className={"chip " + (selectedArtists.length === 0 ? "active" : "")}
+                onClick={() => setSelectedArtists([])}
+              >
+                全部
+              </button>
+              {artistOptions.map((a) => (
+                <button
+                  key={a}
+                  className={"chip " + (selectedArtists.includes(a) ? "active" : "")}
+                  onClick={() => toggleArtist(a)}
+                >
+                  {a}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="filter-group">
           <input
             className="search"
@@ -163,8 +243,26 @@ export default function Home() {
             {selectedCities.length > 0 && (
               <span className="head-tag">城市：{selectedCities.join("、")}</span>
             )}
+            {selectedArtists.length > 0 && (
+              <span className="head-tag">艺人：{selectedArtists.join("、")}</span>
+            )}
           </span>
-          <span className="hint">点击卡片跳转大麦购票</span>
+          <div className="sort-bar">
+            <span className="hint">排序：</span>
+            {[
+              ["heat", "综合热度"],
+              ["time", "最早开演"],
+              ["price", "价格最低"],
+            ].map(([k, label]) => (
+              <button
+                key={k}
+                className={"chip chip-sm " + (sortBy === k ? "active" : "")}
+                onClick={() => setSortBy(k)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {loading && <div className="empty">加载中...</div>}
@@ -194,7 +292,7 @@ function EventCard({ e }) {
   return (
     <a
       className="card"
-      href={e.schema || `https://m.damai.cn/shows/item.html?itemId=${e.id}`}
+      href={e.schema || `https://m.damai.cn/damai/detail/item.html?itemId=${e.id}`}
       target="_blank"
       rel="noreferrer"
     >
@@ -210,6 +308,16 @@ function EventCard({ e }) {
       </div>
       <div className="card-body">
         <h3 className="card-title">{e.name}</h3>
+        {Array.isArray(e.artists) && e.artists.length > 0 && (
+          <div className="card-artists">
+            {e.artists.slice(0, 3).map((a) => (
+              <span key={a} className="artist-tag">{a}</span>
+            ))}
+            {e.artists.length > 3 && (
+              <span className="artist-tag more">+{e.artists.length - 3}</span>
+            )}
+          </div>
+        )}
         <div className="card-meta">
           <div className="meta-row">
             <span className="meta-icon">📅</span>
