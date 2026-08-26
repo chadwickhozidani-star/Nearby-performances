@@ -16,6 +16,9 @@ export default function Home() {
   const [showAllArtists, setShowAllArtists] = useState(false);
   const [sortBy, setSortBy] = useState("heat");
   const [query, setQuery] = useState("");
+  const [cityQuery, setCityQuery] = useState("");
+  const [catQuery, setCatQuery] = useState("");
+  const [artistQuery, setArtistQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -89,6 +92,20 @@ export default function Home() {
 
   const artistOptions = showAllArtists ? allArtists : allArtists.slice(0, 40);
 
+  // 各筛选组候选列表（支持组内搜索过滤）
+  const visibleCities = useMemo(
+    () => cityQuery.trim() ? cityOptions.filter((c) => c.includes(cityQuery.trim())) : cityOptions,
+    [cityOptions, cityQuery]
+  );
+  const visibleArtists = useMemo(
+    () => {
+      const q = artistQuery.trim();
+      const base = q ? allArtists : artistOptions;
+      return q ? base.filter((a) => a.includes(q)) : base;
+    },
+    [allArtists, artistOptions, artistQuery]
+  );
+
   const filtered = useMemo(() => {
     let list = events;
     if (selectedCities.length > 0) {
@@ -143,6 +160,11 @@ export default function Home() {
     return { byCity, byCat };
   }, [events]);
 
+  const visibleCats = useMemo(
+    () => ALL_CATEGORIES.filter((c) => stats.byCat[c] && (!catQuery.trim() || c.includes(catQuery.trim()))),
+    [stats, catQuery]
+  );
+
   return (
     <main className="container">
       <header className="header">
@@ -161,15 +183,24 @@ export default function Home() {
 
       <section className="filters">
         <div className="filter-group">
-          <div className="filter-label">城市（可多选）</div>
-          <div className="chips">
+          <div className="filter-head">
+            <div className="filter-label">城市（可多选）</div>
+            <input
+              className="filter-search"
+              type="text"
+              placeholder="搜索城市..."
+              value={cityQuery}
+              onChange={(e) => setCityQuery(e.target.value)}
+            />
+          </div>
+          <div className={"chips" + (cityQuery.trim() ? " chips-scroll" : "")}>
             <button
               className={"chip " + (selectedCities.length === 0 ? "active" : "")}
               onClick={() => setSelectedCities([])}
             >
               全部
             </button>
-            {cityOptions.map((c) => (
+            {visibleCities.map((c) => (
               <button
                 key={c}
                 className={"chip " + (selectedCities.includes(c) ? "active" : "")}
@@ -183,7 +214,16 @@ export default function Home() {
         </div>
 
         <div className="filter-group">
-          <div className="filter-label">演出类型（可多选）</div>
+          <div className="filter-head">
+            <div className="filter-label">演出类型（可多选）</div>
+            <input
+              className="filter-search"
+              type="text"
+              placeholder="搜索类型..."
+              value={catQuery}
+              onChange={(e) => setCatQuery(e.target.value)}
+            />
+          </div>
           <div className="chips">
             <button
               className={"chip " + (selectedCats.length === 0 ? "active" : "")}
@@ -191,7 +231,7 @@ export default function Home() {
             >
               全部
             </button>
-            {ALL_CATEGORIES.filter((c) => stats.byCat[c]).map((c) => (
+            {visibleCats.map((c) => (
               <button
                 key={c}
                 className={"chip " + (selectedCats.includes(c) ? "active" : "")}
@@ -204,19 +244,28 @@ export default function Home() {
           </div>
         </div>
 
-        {artistOptions.length > 0 && (
+        {allArtists.length > 0 && (
           <div className="filter-group">
-            <div className="filter-label">
-              艺人（可多选{showAllArtists ? `，共 ${allArtists.length} 位` : "，热门 Top 40"}）
+            <div className="filter-head">
+              <div className="filter-label">
+                艺人（可多选{showAllArtists ? `，共 ${allArtists.length} 位` : "，热门 Top 40"}）
+              </div>
+              <input
+                className="filter-search"
+                type="text"
+                placeholder="搜索艺人..."
+                value={artistQuery}
+                onChange={(e) => setArtistQuery(e.target.value)}
+              />
             </div>
-            <div className={"chips" + (showAllArtists ? " chips-scroll" : "")}>
+            <div className={"chips" + (showAllArtists || artistQuery.trim() ? " chips-scroll" : "")}>
               <button
                 className={"chip " + (selectedArtists.length === 0 ? "active" : "")}
                 onClick={() => setSelectedArtists([])}
               >
                 全部
               </button>
-              {artistOptions.map((a) => (
+              {visibleArtists.map((a) => (
                 <button
                   key={a}
                   className={"chip " + (selectedArtists.includes(a) ? "active" : "")}
@@ -225,12 +274,14 @@ export default function Home() {
                   {a}
                 </button>
               ))}
-              <button
-                className="chip chip-more"
-                onClick={() => setShowAllArtists((v) => !v)}
-              >
-                {showAllArtists ? "收起" : `展开全部（${allArtists.length}）`}
-              </button>
+              {!artistQuery.trim() && (
+                <button
+                  className="chip chip-more"
+                  onClick={() => setShowAllArtists((v) => !v)}
+                >
+                  {showAllArtists ? "收起" : `展开全部（${allArtists.length}）`}
+                </button>
+              )}
             </div>
           </div>
         )}
