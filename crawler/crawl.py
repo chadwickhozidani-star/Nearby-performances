@@ -144,7 +144,10 @@ def main():
                 time.sleep(2)
                 continue
             for it in items:
-                it["city"] = city_name
+                # city 优先使用大麦返回的真实城市（cityName），
+                # 避免跨城巡演出现在其他城市分类页时被误标为请求城市
+                real_city = (it.get("cityName") or "").strip()
+                it["city"] = real_city if real_city else city_name
                 it["category"] = cat
             kept = []
             for it in items:
@@ -208,7 +211,7 @@ def main():
         "generated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
         "failed": "、".join(failed_parts) if failed_parts else "",
     }
-    ok, msg = notify.send_success(stats)
+    ok, msg = notify.send_success(stats, events=unique)
     print(f"飞书通知: {msg}")
 
 

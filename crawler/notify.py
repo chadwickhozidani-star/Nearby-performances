@@ -11,7 +11,8 @@
 1. 多 webhook 配置文件：与 notify.py 同目录的 webhooks.json
    {
      "webhooks": [
-       {"name": "运营群", "url": "https://open.feishu.cn/open-apis/bot/v2/hook/xxx", "secret": "", "enabled": true},
+       {"name": "运营群", "url": "https://open.feishu.cn/open-apis/bot/v2/hook/xxx", "secret": "", "enabled": true,
+        "cities": ["深圳"], "artists": ["邓紫棋"], "match": "all"},
        {"name": "告警群", "url": "https://open.feishu.cn/open-apis/bot/v2/hook/yyy", "secret": "加签密钥", "enabled": true}
      ]
    }
@@ -19,6 +20,9 @@
    - url:     飞书群机器人 webhook 地址（必填）
    - secret:  机器人"加签"密钥（可选，开启加签时填）
    - enabled: 是否启用该 webhook（可选，默认 true）
+   - cities:  关注的演出城市列表（可选，空=全部城市）
+   - artists: 关注的艺人列表（可选，空=全部艺人）
+   - match:   条件匹配模式（可选，"any"=命中任一条件即推送，默认；"all"=城市和艺人同时命中才推送）
 2. 环境变量（单 webhook，兼容旧配置）：
    FEISHU_WEBHOOK_URL     飞书群机器人 webhook 地址
    FEISHU_WEBHOOK_SECRET  加签密钥（可选）
@@ -29,6 +33,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import time
 import urllib.request
 
@@ -58,6 +63,9 @@ def _load_webhooks():
                         "name": str(item.get("name", "")).strip(),
                         "url": url,
                         "secret": str(item.get("secret", "")).strip(),
+                        "cities": [str(c).strip() for c in item.get("cities", []) if str(c).strip()],
+                        "artists": [str(a).strip() for a in item.get("artists", []) if str(a).strip()],
+                        "match": "all" if str(item.get("match", "any")).strip() == "all" else "any",
                     }
                 )
             if hooks:
@@ -72,6 +80,9 @@ def _load_webhooks():
                 "name": "",
                 "url": url,
                 "secret": os.environ.get("FEISHU_WEBHOOK_SECRET", "").strip(),
+                "cities": [],
+                "artists": [],
+                "match": "any",
             }
         ], "环境变量 FEISHU_WEBHOOK_URL"
     return [], ""
@@ -157,8 +168,79 @@ def _card(title, template, elements):
     }
 
 
-def send_success(stats):
-    """发送抓取成功通知。stats 为字典，字段见 crawl.py 调用处。"""
+def _match_event(hook, e):
+    """判断单场演出是否命中某个 webhook 的监控条件。
+
+    条件字段为空表示"不限制"（例如 cities 为空=关注全部城市）。
+    match=all 时城市和艺人需同时命中；match=any（默认）时命中任一即可。
+    艺人名兼容别名/组合写法（如 "G.E.M.邓紫棋" 匹配 "邓紫棋"）。
+    """
+    city = str(e.get("city", "") or e.get("cityName", "") or "").strip()
+    artist_terms = []
+    for a in e.get("artists") or []:
+        for part in re.split(r"[;；,，、/]", str(a)):
+            part = part.strip()
+            if part:
+                artist_terms.append(part)
+
+    city_hit = city in hook["cities"] if hook["cities"] else None
+    artist_hit = None
+    if hook["artists"]:
+        artist_hit = any(
+            (term in target) or (target in term)
+            for term in artist_terms
+            for target in hook["artists"]
+        )
+
+    # 无任何条件：全部命中
+    if city_hit is None and artist_hit is None:
+        return True
+    if hook["match"] == "all":
+        return (city_hit is None or city_hit) and (artist_hit is None or artist_hit)
+    hits = [x for x in (city_hit, artist_hit) if x is not None]
+    return any(hits)
+
+
+def _filter_events(hook, events):
+    """按 webhook 条件过滤演出列表，返回命中的演出。"""
+    return [e for e in events if _match_event(hook, e)]
+
+
+def _event_line(e, idx=None):
+    """将一场演出格式化为飞书消息文本行。"""
+    name = str(e.get("name", "")).strip()
+    city = str(e.get("city", "") or e.get("cityName", "") or "").strip()
+    show_time = str(e.get("showTime", "") or "").strip()
+    venue = str(e.get("venueName", "") or "").strip()
+    price = str(e.get("priceStr", "") or "").strip()
+    artists = "、".join([str(a) for a in (e.get("artists") or [])][:3])
+    prefix = f"{idx}. " if idx is not None else ""
+    parts = [prefix, name]
+    if city:
+        parts.append(f"📍{city}")
+    if show_time:
+        parts.append(show_time)
+    if artists:
+        parts.append(artists)
+    if venue:
+        parts.append(venue)
+    if price:
+        parts.append(f"¥{price}")
+    line = " ｜ ".join(parts)
+    schema = str(e.get("schema", "") or "").strip()
+    if schema:
+        line += f"\n    [查看详情]({schema})"
+    return line
+
+
+def send_success(stats, events=None):
+    """发送抓取成功通知。stats 为字典，字段见 crawl.py 调用处。
+
+    events 可选：传入去重后的演出列表时，每个 webhook 会按自己的
+    cities/artists/match 条件过滤后单独推送匹配演出；未配置任何条件的
+    webhook 保持推送全局摘要（不推完整列表，避免刷屏）。
+    events 为 None 时保持旧行为，所有 webhook 只收全局摘要。
+    """
     lines = [
         f"**抓取城市**：{stats['city_count']} 个（{stats['cities']}）",
         f"**演出总数**：{stats['total']} 场",
@@ -171,10 +253,37 @@ def send_success(stats):
     if SITE_URL:
         lines.append(f"**站点地址**：[{SITE_URL}]({SITE_URL})")
 
-    elements = [
-        {"tag": "div", "text": {"tag": "lark_md", "content": "\n".join(lines)}}
-    ]
-    return _post(_card("演唱会雷达 · 数据更新完成", "green", elements))
+    hooks, source = _load_webhooks()
+    if not hooks:
+        return False, "未配置任何 webhook（webhooks.json 或 FEISHU_WEBHOOK_URL），跳过发送"
+
+    results = []
+    for hook in hooks:
+        label = hook["name"] or hook["url"]
+        if events is not None and (hook["cities"] or hook["artists"]):
+            matched = _filter_events(hook, events)
+            if not matched:
+                results.append((label, True, "无匹配演出，跳过"))
+                print(f"[notify] webhook [{label}] -> 无匹配演出，跳过")
+                continue
+            cap = 20
+            shown = matched[:cap]
+            content = "\n".join(lines)
+            content += f"\n**🔔 关注演出（{len(matched)} 场）**：\n"
+            content += "\n".join(_event_line(e, i + 1) for i, e in enumerate(shown))
+            if len(matched) > cap:
+                content += f"\n… 等共 {len(matched)} 场，请到站点查看完整列表"
+            elements = [{"tag": "div", "text": {"tag": "lark_md", "content": content}}]
+            ok, msg = _post_one(hook, _card("演唱会雷达 · 关注演出更新", "green", elements))
+        else:
+            elements = [{"tag": "div", "text": {"tag": "lark_md", "content": "\n".join(lines)}}]
+            ok, msg = _post_one(hook, _card("演唱会雷达 · 数据更新完成", "green", elements))
+        results.append((label, ok, msg))
+        print(f"[notify] webhook [{label}] -> {msg}")
+
+    ok = all(r[1] for r in results)
+    summary = "; ".join(f"{r[0]}: {r[2]}" for r in results)
+    return ok, summary
 
 
 def send_failure(error):
