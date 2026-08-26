@@ -69,25 +69,26 @@ export default function Home() {
     );
   };
 
-  // 艺人候选：按出现次数排序，次数相同按首次出现顺序（热度）
+  // 艺人候选：按热度排序（取该艺人名下所有演出中最小的 heatRank，越小越热）
   const allArtists = useMemo(() => {
+    const heat = {};
     const order = [];
-    const count = {};
     for (const e of events) {
       const arts = Array.isArray(e.artists) ? e.artists : [];
+      const hr = e.heatRank || 999999;
       for (const a of arts) {
         if (!a) continue;
-        if (!(a in count)) {
-          count[a] = 0;
+        if (!(a in heat)) {
+          heat[a] = hr;
           order.push(a);
+        } else if (hr < heat[a]) {
+          heat[a] = hr;
         }
-        count[a] += 1;
       }
     }
-    return order
-      .map((a) => ({ name: a, n: count[a], idx: order.indexOf(a) }))
-      .sort((x, y) => y.n - x.n || x.idx - y.idx)
-      .map((x) => x.name);
+    return order.sort(
+      (x, y) => heat[x] - heat[y] || order.indexOf(x) - order.indexOf(y)
+    );
   }, [events]);
 
   const artistOptions = showAllArtists ? allArtists : allArtists.slice(0, 40);
@@ -168,7 +169,12 @@ export default function Home() {
   return (
     <main className="container">
       <header className="header">
-        <h1>演唱会雷达</h1>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <h1>演唱会雷达</h1>
+          <a href="/settings/" style={{ fontSize: 13, color: "var(--accent)", textDecoration: "none", border: "1px solid var(--accent)", borderRadius: 999, padding: "5px 14px" }}>
+            通知设置
+          </a>
+        </div>
         <p className="subtitle">
           {meta ? (
             <>
