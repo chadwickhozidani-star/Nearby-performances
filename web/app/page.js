@@ -13,6 +13,7 @@ export default function Home() {
   const [selectedCities, setSelectedCities] = useState(["北京", "上海"]);
   const [selectedCats, setSelectedCats] = useState([]);
   const [selectedArtists, setSelectedArtists] = useState([]);
+  const [showAllArtists, setShowAllArtists] = useState(false);
   const [sortBy, setSortBy] = useState("heat");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -65,8 +66,8 @@ export default function Home() {
     );
   };
 
-  // 艺人候选：按出现次数排序取 Top 40，次数相同按首次出现顺序（热度）
-  const artistOptions = useMemo(() => {
+  // 艺人候选：按出现次数排序，次数相同按首次出现顺序（热度）
+  const allArtists = useMemo(() => {
     const order = [];
     const count = {};
     for (const e of events) {
@@ -83,9 +84,10 @@ export default function Home() {
     return order
       .map((a) => ({ name: a, n: count[a], idx: order.indexOf(a) }))
       .sort((x, y) => y.n - x.n || x.idx - y.idx)
-      .slice(0, 40)
       .map((x) => x.name);
   }, [events]);
+
+  const artistOptions = showAllArtists ? allArtists : allArtists.slice(0, 40);
 
   const filtered = useMemo(() => {
     let list = events;
@@ -204,8 +206,10 @@ export default function Home() {
 
         {artistOptions.length > 0 && (
           <div className="filter-group">
-            <div className="filter-label">艺人（可多选，仅列热门 Top 40）</div>
-            <div className="chips">
+            <div className="filter-label">
+              艺人（可多选{showAllArtists ? `，共 ${allArtists.length} 位` : "，热门 Top 40"}）
+            </div>
+            <div className={"chips" + (showAllArtists ? " chips-scroll" : "")}>
               <button
                 className={"chip " + (selectedArtists.length === 0 ? "active" : "")}
                 onClick={() => setSelectedArtists([])}
@@ -221,6 +225,12 @@ export default function Home() {
                   {a}
                 </button>
               ))}
+              <button
+                className="chip chip-more"
+                onClick={() => setShowAllArtists((v) => !v)}
+              >
+                {showAllArtists ? "收起" : `展开全部（${allArtists.length}）`}
+              </button>
             </div>
           </div>
         )}

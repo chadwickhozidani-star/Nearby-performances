@@ -80,6 +80,19 @@ body {
   gap: 8px;
 }
 
+.chips-scroll {
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.chip-more {
+  background: var(--chip-bg);
+  border-style: dashed;
+  color: var(--primary);
+  cursor: pointer;
+}
+
 .chip {
   background: var(--chip-bg);
   color: var(--text);
