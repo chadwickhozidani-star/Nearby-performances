@@ -14,6 +14,8 @@ export default function Home() {
   const [selectedCats, setSelectedCats] = useState([]);
   const [selectedArtists, setSelectedArtists] = useState([]);
   const [showAllArtists, setShowAllArtists] = useState(false);
+  const [showAllCities, setShowAllCities] = useState(false);
+  const [showAllCats, setShowAllCats] = useState(false);
   const [sortBy, setSortBy] = useState("heat");
   const [query, setQuery] = useState("");
   const [cityQuery, setCityQuery] = useState("");
@@ -199,7 +201,7 @@ export default function Home() {
               onChange={(e) => setCityQuery(e.target.value)}
             />
           </div>
-          <div className={"chips" + (cityQuery.trim() ? " chips-scroll" : "")}>
+          <div className={"chips" + (cityQuery.trim() || showAllCities ? " chips-open" : " chips-fold")}>
             <button
               className={"chip " + (selectedCities.length === 0 ? "active" : "")}
               onClick={() => setSelectedCities([])}
@@ -216,6 +218,14 @@ export default function Home() {
                 <span className="count">{stats.byCity[c] || 0}</span>
               </button>
             ))}
+            {!cityQuery.trim() && (
+              <button
+                className="chip chip-more"
+                onClick={() => setShowAllCities((v) => !v)}
+              >
+                {showAllCities ? "收起" : `展开全部（${cityOptions.length}）`}
+              </button>
+            )}
           </div>
         </div>
 
@@ -230,7 +240,7 @@ export default function Home() {
               onChange={(e) => setCatQuery(e.target.value)}
             />
           </div>
-          <div className="chips">
+          <div className={"chips" + (catQuery.trim() || showAllCats ? " chips-open" : " chips-fold")}>
             <button
               className={"chip " + (selectedCats.length === 0 ? "active" : "")}
               onClick={() => setSelectedCats([])}
@@ -247,6 +257,14 @@ export default function Home() {
                 <span className="count">{stats.byCat[c] || 0}</span>
               </button>
             ))}
+            {!catQuery.trim() && (
+              <button
+                className="chip chip-more"
+                onClick={() => setShowAllCats((v) => !v)}
+              >
+                {showAllCats ? "收起" : `展开全部（${ALL_CATEGORIES.length}）`}
+              </button>
+            )}
           </div>
         </div>
 
@@ -264,7 +282,7 @@ export default function Home() {
                 onChange={(e) => setArtistQuery(e.target.value)}
               />
             </div>
-            <div className={"chips" + (showAllArtists || artistQuery.trim() ? " chips-scroll" : "")}>
+            <div className={"chips" + (showAllArtists || artistQuery.trim() ? " chips-open" : " chips-fold")}>
               <button
                 className={"chip " + (selectedArtists.length === 0 ? "active" : "")}
                 onClick={() => setSelectedArtists([])}

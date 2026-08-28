@@ -122,6 +122,15 @@ body {
   padding-right: 4px;
 }
 
+.chips-fold {
+  max-height: 76px;
+  overflow: hidden;
+}
+
+.chips-open {
+  max-height: none;
+}
+
 .chip-more {
   background: var(--chip-bg);
   border-style: dashed;
